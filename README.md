@@ -1,5 +1,5 @@
-CSV Runner
-==========
+CSV Runner v1.0.0
+=================
 
 Library and command line tool to use CSV input as data for a command line templating and running system
 
