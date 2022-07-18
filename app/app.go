@@ -8,7 +8,7 @@ import (
 const (
 	Name    = "CSV Runner"
 	Label   = Name + " v" + Version
-	Version = "1.0.0-beta"
+	Version = "1.0.0"
 )
 
 var Debug bool

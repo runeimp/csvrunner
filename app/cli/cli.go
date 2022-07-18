@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/runeimp/csvrunner"
@@ -70,7 +71,13 @@ func parseArgs(args []string) {
 			argSkip = true
 		case "-f", "-file", "-template-file", "--template-file":
 			templateFile = args[i+1]
-			app.PrintDebug("cli.parseArgs() | arg: %q | templateFile: %q", arg, templateFile)
+			templateBytes, err := ioutil.ReadFile(templateFile)
+			if err != nil {
+				templateString = err.Error()
+			} else {
+				templateString = string(templateBytes)
+			}
+			app.PrintDebug("cli.parseArgs() | arg: %q | templateFile: %q | templateString: %q", arg, templateFile, templateString)
 			argSkip = true
 		case "-h", "-help", "--help":
 			app.PrintDebug("cli.parseArgs() | arg: %q", arg)
@@ -118,12 +125,31 @@ func parseArgs(args []string) {
 	}
 }
 
-func parseCSV(reader io.Reader) (err error) {
+func parseCSV(reader io.Reader, fileNumber, csvCount int) (err error) {
 	r := csv.NewReader(reader)
 
-	var templateRunner *csvrunner.TemplateRunner
+	var (
+		format         = "file #%%0%dd row #%%03d ==> %%s%%s"
+		templateRunner *csvrunner.TemplateRunner
+	)
 
-	for {
+	if csvCount > 0 {
+		if csvCount > 9 {
+			if csvCount > 99 {
+				if csvCount > 999 {
+					format = fmt.Sprintf(format, 4)
+				} else {
+					format = fmt.Sprintf(format, 3)
+				}
+			} else {
+				format = fmt.Sprintf(format, 2)
+			}
+		} else {
+			format = "file #%d row #%03d ==> %s%s"
+		}
+	}
+
+	for i := 0; true; i++ {
 		record, err := r.Read()
 		if err == io.EOF {
 			break
@@ -140,10 +166,18 @@ func parseCSV(reader io.Reader) (err error) {
 			continue
 		}
 		app.PrintDebug("cli.parseCSV() | record: %q", record)
-		// _, err = templateRunner.Run(record, templateOutput)
 		out, err := templateRunner.Run(record, templateOutput)
 		if templateOutput {
-			fmt.Print(out)
+			end := len(out) - 1
+			lineEnd := ""
+			if out[end] != 0x0A { // 0x0A == rune("\n")
+				lineEnd = "\n"
+			}
+			if csvCount > 0 {
+				fmt.Printf(format, fileNumber, i, out, lineEnd)
+			} else {
+				fmt.Printf("stdin ==> %s%s", out, lineEnd)
+			}
 		}
 	}
 
@@ -156,7 +190,10 @@ func Run(args []string) {
 		os.Exit(0)
 	}
 
-	var err error
+	var (
+		err      error
+		csvCount int
+	)
 
 	parseArgs(args)
 
@@ -166,13 +203,15 @@ func Run(args []string) {
 	if (fi.Mode() & os.ModeCharDevice) == 0 {
 		// Data is from a Pipe
 		reader := bufio.NewReader(os.Stdin)
-		err = parseCSV(reader)
+		err = parseCSV(reader, 0, 0)
 		if err != nil {
 			app.PrintError("stdin parsing error: %v", err)
 		}
 	}
 
-	for _, file := range csvFiles {
+	csvCount = len(csvFiles)
+
+	for i, file := range csvFiles {
 		app.PrintDebug("cli.Run() | csvFiles | file: %q", file)
 		if _, err := os.Stat(file); os.IsNotExist(err) {
 			app.PrintError("could not find %q", file)
@@ -181,7 +220,7 @@ func Run(args []string) {
 
 		csvFile, _ := os.Open(file)
 		reader := bufio.NewReader(csvFile)
-		err = parseCSV(reader)
+		err = parseCSV(reader, i+1, csvCount)
 		if err != nil {
 			app.PrintError("csv file parsing error: %v", err)
 		}

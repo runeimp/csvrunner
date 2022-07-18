@@ -10,7 +10,7 @@ const (
 )
 
 var (
-	recordRandolf = []string{"Randolf", "42", "boy,girl,boy,boy"}
+	recordRandolf = []string{"Randolf", "42", "they/them"}
 )
 
 func TestCommandLineParsePowerShell(t *testing.T) {

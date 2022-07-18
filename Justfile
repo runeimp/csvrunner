@@ -41,29 +41,59 @@ archive: _term-wipe
 
 
 # Build app
-build target: _term-wipe
+build $target='': _term-wipe
 	#!/bin/sh
 
-	if [ ]
+	if [ "${target}" = '' ]; then
+		target=all
+	fi
 
-	@# if [ '{{os()}}' = 'windows' ]; then
-	@# 	go build -o bin/windows/{{PROJECT_CLI}}.exe ./cmd/{{PROJECT_CLI}}/{{PROJECT_CLI}}.go
-	@# else
-	@# 	go build -o bin/{{os()}}/{{PROJECT_CLI}} ./cmd/{{PROJECT_CLI}}/main.go
-	ls -al bin/*/*
+	case "${target}" in
+		all)
+			just _build-linux
+			just _build-macos
+			just _build-windows
+			break
+			;;
+		linux)
+			just _build-linux
+			break
+			;;
+		macos)
+			just _build-macos
+			break
+			;;
+		windows)
+			just _build-windows
+			break
+			;;
+		*) echo "'${target}' is an unknown target" ;;
+	esac
 
-_build-linux:
+@_build-linux:
+	echo "==> Building the GNU/Linux binary"
 	GOOS=linux GOARCH=amd64 go build -o bin/linux/{{PROJECT_CLI}} ./cmd/{{PROJECT_CLI}}/{{PROJECT_CLI}}.go
+	ls -ahl bin/linux/*
 
-_build-macos:
+@_build-macos:
+	echo "==> Building the macOS binary"
 	GOOS=darwin GOARCH=amd64 go build -o bin/macos/{{PROJECT_CLI}} ./cmd/{{PROJECT_CLI}}/{{PROJECT_CLI}}.go
+	ls -ahl bin/macos/*
 
-_build-windows:
+@_build-windows:
+	echo "==> Building the Windows binary"
 	GOOS=windows GOARCH=amd64 go build -o bin/windows/{{PROJECT_CLI}}.exe ./cmd/{{PROJECT_CLI}}/{{PROJECT_CLI}}.go
+	ls -ahl bin/windows/*
+
 
 # Clean up this place!
-clean: _term-wipe
+@clean: _term-wipe
+	echo "Cleaning up around here"
+	echo
 	rm -f c.out
+
+	# ls -ahl
+	git status
 
 
 # Build distro
@@ -87,9 +117,9 @@ run *args: _term-wipe
 _run *args:
 	@go run ./cmd/{{PROJECT_CLI}}/{{PROJECT_CLI}}.go "$@"
 
-# Run a test: cli, coverage, or package
-@test cmd="package": _term-wipe
-	just test-{{cmd}}
+# Run a test: cli, coverage, or unit
+@test target="unit": _term-wipe
+	just test-{{target}}
 
 # Quick CLI test
 test-cli:
@@ -105,11 +135,6 @@ test-cli:
 
 	echo "==> Test with debug enabled (-e)"
 	just _run -debug -e TEST_ENV data/test.csv
-
-	echo
-
-	echo "==> Test with debug disabled (-ot)"
-	just _run -ot "${TEST_ENV}" data/test.csv
 
 	echo
 
@@ -136,14 +161,19 @@ test-cli:
 
 	echo
 
+	echo "==> Test with stdin and debug disabled (-of)"
+	echo '$ cat data/test.csv | {{PROJECT_CLI}}.exe -of test.shell-template'
+	cat data/test.csv | {{PROJECT_CLI}}.exe -of test.shell-template
+
+	echo
+
 # Run Go Test Coverage
 @test-coverage:
-	echo "You need to run:"
-	echo "go test -coverprofile=c.out"
-	echo "go tool cover -func=c.out"
+	go test -coverprofile=c.out
+	go tool cover -func=c.out
 
 # Run Go Unit Tests
-test-package:
+test-unit:
 	go test
 	@# go test parser/*
 	@# cd parser; go test
